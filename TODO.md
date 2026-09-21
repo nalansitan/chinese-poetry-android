@@ -15,6 +15,7 @@
 
 ## P1：发布与运维
 
+- [ ] 恢复 GitHub Actions 中真实的 Android `test lint assembleDebug` CI；当前 Android job 仅为临时占位检查。
 - [ ] 服务端实现 HTTP Range 请求及 `206 Partial Content`，完成真正的断点续传。
 - [ ] 为数据库和 APK 发布建立可审计的生成清单与发布流程。
 - [ ] 启用 Room schema 导出并纳入版本控制，补充 migration tests。
@@ -38,4 +39,3 @@
 - [ ] 完成数据安全表、内容分级、目标 SDK 和商店政策检查。
 - [ ] 建立正式签名密钥的离线备份、轮换及恢复方案。
 - [ ] 在真实设备和主流 Android 版本上执行安装、升级、离线与弱网测试。
-
