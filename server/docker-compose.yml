@@ -1,0 +1,10 @@
+services:
+  chinese-poetry-android-server:
+    build: .
+    image: chinese-poetry-android-server:local
+    volumes:
+      - .:/app
+    working_dir: /app
+    ports:
+      - "8000:8000"
+    restart: always

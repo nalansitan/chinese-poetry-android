@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 古风配色 -->
+    <color name="paper_white">#FFFAF9F6</color>      <!-- 宣纸白 -->
+    <color name="ink_black">#FF2F2F2F</color>        <!-- 墨黑 -->
+    <color name="cinnabar_red">#FFB22222</color>     <!-- 朱砂红 -->
+    <color name="indigo">#FF4A6741</color>           <!-- 青黛 -->
+    <color name="pale_gold">#FFD4AF37</color>        <!-- 淡金 -->
+    <color name="light_gray">#FFF5F5F0</color>       <!-- 浅灰 -->
+    <color name="warm_beige">#FFF5F5DC</color>       <!-- 米白 -->
+    <color name="dark_brown">#FF5C4033</color>       <!-- 深褐 -->
+    <color name="ic_launcher_background">#FFB22222</color> <!-- 图标背景：朱砂红 -->
+</resources>

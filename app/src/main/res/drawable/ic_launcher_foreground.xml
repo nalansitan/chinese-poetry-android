@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="1024"
+    android:viewportHeight="1024">
+
+    <!-- 左页 -->
+    <path
+        android:fillColor="#F5E8CF"
+        android:pathData="M176,208
+            C274,208 368,230 482,324
+            L482,828
+            C361,745 267,726 176,734
+            Z" />
+
+    <!-- 右页 -->
+    <path
+        android:fillColor="#F5E8CF"
+        android:pathData="M848,208
+            C750,208 656,230 542,324
+            L542,828
+            C663,745 757,726 848,734
+            Z" />
+
+    <!-- 左页外轮廓 -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#BE2A2C"
+        android:strokeWidth="30"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M176,208
+            C274,208 368,230 482,324
+            L482,828
+            C361,745 267,726 176,734
+            Z" />
+
+    <!-- 右页外轮廓 -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#BE2A2C"
+        android:strokeWidth="30"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M848,208
+            C750,208 656,230 542,324
+            L542,828
+            C663,745 757,726 848,734
+            Z" />
+
+    <!-- 底部与两侧书框 -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#BE2A2C"
+        android:strokeWidth="28"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M176,248
+            L176,844
+            C176,880 202,906 238,906
+            L786,906
+            C822,906 848,880 848,844
+            L848,248" />
+
+    <!-- 中缝 -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#BE2A2C"
+        android:strokeWidth="28"
+        android:strokeLineCap="round"
+        android:pathData="M512,320 L512,914" />
+
+    <!-- 左页诗行 -->
+    <path
+        android:fillColor="#BE2A2C"
+        android:pathData="M300,358
+            C360,358 411,364 454,382
+            L440,414
+            C399,397 352,390 300,390
+            Z" />
+    <path
+        android:fillColor="#BE2A2C"
+        android:pathData="M300,430
+            C360,430 410,437 448,454
+            L434,486
+            C397,470 351,462 300,462
+            Z" />
+    <path
+        android:fillColor="#BE2A2C"
+        android:pathData="M300,502
+            C358,502 406,509 444,525
+            L430,557
+            C394,542 350,534 300,534
+            Z" />
+    <path
+        android:fillColor="#BE2A2C"
+        android:pathData="M300,574
+            C356,574 402,580 438,595
+            L424,627
+            C390,613 347,606 300,606
+            Z" />
+
+    <!-- 右页诗行 -->
+    <path
+        android:fillColor="#BE2A2C"
+        android:pathData="M724,358
+            C664,358 613,364 570,382
+            L584,414
+            C625,397 672,390 724,390
+            Z" />
+    <path
+        android:fillColor="#BE2A2C"
+        android:pathData="M724,430
+            C664,430 614,437 576,454
+            L590,486
+            C627,470 673,462 724,462
+            Z" />
+    <path
+        android:fillColor="#BE2A2C"
+        android:pathData="M724,502
+            C666,502 618,509 580,525
+            L594,557
+            C630,542 674,534 724,534
+            Z" />
+    <path
+        android:fillColor="#BE2A2C"
+        android:pathData="M724,574
+            C668,574 622,580 586,595
+            L600,627
+            C634,613 677,606 724,606
+            Z" />
+</vector>

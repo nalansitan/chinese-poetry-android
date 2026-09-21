@@ -1,0 +1,5 @@
+# Android Studio normally writes sdk.dir automatically.
+# sdk.dir=/path/to/Android/sdk
+
+# Public endpoint only. The URL must end with a slash.
+BASE_URL=https://example.com/
