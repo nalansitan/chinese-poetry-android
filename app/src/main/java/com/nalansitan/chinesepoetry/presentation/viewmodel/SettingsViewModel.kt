@@ -2,13 +2,10 @@ package com.nalansitan.chinesepoetry.presentation.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.nalansitan.chinesepoetry.BuildConfig
 import com.nalansitan.chinesepoetry.data.local.prefs.DataStoreManager
 import com.nalansitan.chinesepoetry.data.manager.AppUpdateManager
 import com.nalansitan.chinesepoetry.data.manager.AppUpdateState
-import com.nalansitan.chinesepoetry.data.manager.DataUpdateManager
 import com.nalansitan.chinesepoetry.data.manager.DatabaseDownloadManager
-import com.nalansitan.chinesepoetry.data.remote.ApiServiceProvider
 import com.nalansitan.chinesepoetry.data.remote.api.AppVersionResponse
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -18,23 +15,6 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
-
-/**
- * 更新状态
- */
-sealed class UpdateStatus {
-    data object Idle : UpdateStatus()
-    data object Checking : UpdateStatus()
-    data object NoUpdate : UpdateStatus()
-    data class HasUpdate(
-        val newVersion: Int,
-        val versionName: String,
-        val changelog: String
-    ) : UpdateStatus()
-    data class Downloading(val progress: Int) : UpdateStatus()
-    data object Success : UpdateStatus()
-    data class Error(val message: String) : UpdateStatus()
-}
 
 sealed class AppUpdateUiStatus {
     data object Idle : AppUpdateUiStatus()
@@ -71,14 +51,16 @@ sealed class AppUpdateUiStatus {
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val dataStore: DataStoreManager,
-    private val dataUpdateManager: DataUpdateManager,
     private val appUpdateManager: AppUpdateManager,
-    private val apiServiceProvider: ApiServiceProvider,
     private val downloadManager: DatabaseDownloadManager
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SettingsUiState())
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
+
+    private var availableData: com.nalansitan.chinesepoetry.data.remote.DatabaseRelease? = null
+    private var dataOperation: kotlinx.coroutines.Job? = null
+    val dataDownloadState = downloadManager.downloadState
 
     init {
         loadSettings()
@@ -105,81 +87,6 @@ class SettingsViewModel @Inject constructor(
             // 加载夜间模式设置
             dataStore.isDarkMode.collect { mode ->
                 _uiState.update { it.copy(darkMode = mode) }
-            }
-        }
-
-        viewModelScope.launch {
-            // 加载数据版本
-            dataStore.dataVersionName.collect { version ->
-                _uiState.update { it.copy(dataVersion = version) }
-            }
-        }
-
-        viewModelScope.launch {
-            // 加载服务器配置
-            dataStore.serverUrl.collect { url ->
-                _uiState.update {
-                    it.copy(serverUrl = if (url == BuildConfig.BASE_URL) "" else url)
-                }
-            }
-        }
-
-
-        viewModelScope.launch {
-            // 监听更新状态并转换为 UI 状态
-            dataUpdateManager.updateState.collect { state ->
-                val uiStatus = when (state) {
-                    is com.nalansitan.chinesepoetry.data.manager.UpdateState.Idle -> UpdateStatus.Idle
-                    is com.nalansitan.chinesepoetry.data.manager.UpdateState.Checking -> UpdateStatus.Checking
-                    is com.nalansitan.chinesepoetry.data.manager.UpdateState.NoUpdate -> UpdateStatus.NoUpdate
-                    is com.nalansitan.chinesepoetry.data.manager.UpdateState.HasUpdate -> UpdateStatus.HasUpdate(
-                        newVersion = state.versionInfo.version,
-                        versionName = state.versionInfo.versionName,
-                        changelog = state.versionInfo.changelog
-                    )
-                    is com.nalansitan.chinesepoetry.data.manager.UpdateState.Downloading -> UpdateStatus.Downloading(
-                        progress = state.progress
-                    )
-                    is com.nalansitan.chinesepoetry.data.manager.UpdateState.Success -> UpdateStatus.Success
-                    is com.nalansitan.chinesepoetry.data.manager.UpdateState.Error -> UpdateStatus.Error(
-                        message = state.message
-                    )
-                }
-                _uiState.update { it.copy(updateStatus = uiStatus) }
-            }
-        }
-
-        viewModelScope.launch {
-            combine(
-                dataStore.hasPendingUpdate,
-                dataStore.availableDataVersion,
-                dataStore.availableDataVersionName,
-                dataStore.availableChangelog
-            ) { hasUpdate, version, versionName, changelog ->
-                PendingUpdateInfo(
-                    hasUpdate = hasUpdate,
-                    version = version,
-                    versionName = versionName,
-                    changelog = changelog
-                )
-            }.collect { pendingUpdate ->
-                _uiState.update { currentState ->
-                    val syncedStatus = when {
-                        currentState.updateStatus is UpdateStatus.Downloading -> currentState.updateStatus
-                        currentState.updateStatus is UpdateStatus.Checking -> currentState.updateStatus
-                        pendingUpdate.hasUpdate -> UpdateStatus.HasUpdate(
-                            newVersion = pendingUpdate.version,
-                            versionName = pendingUpdate.versionName,
-                            changelog = pendingUpdate.changelog
-                        )
-                        currentState.updateStatus is UpdateStatus.Success -> UpdateStatus.Success
-                        else -> UpdateStatus.Idle
-                    }
-                    currentState.copy(
-                        hasPendingUpdate = pendingUpdate.hasUpdate,
-                        updateStatus = syncedStatus
-                    )
-                }
             }
         }
 
@@ -272,29 +179,44 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    /**
-     * 检查数据更新
-     */
-    fun checkForUpdate() {
-        viewModelScope.launch {
-            dataUpdateManager.checkForUpdate()
+    fun checkForDataUpdate() {
+        if (dataOperation?.isActive == true) return
+        dataOperation = viewModelScope.launch {
+            availableData = null
+            downloadManager.resetState()
+            _uiState.update { it.copy(dataUpdateMessage = "正在检查 GitHub 数据更新…", canUpdateData = false, checkingData = true) }
+            try {
+                val current = downloadManager.installedDataVersion()
+                availableData = downloadManager.checkDataUpdate()
+                _uiState.update { it.copy(
+                    dataUpdateMessage = availableData?.let { data -> "发现数据版本 ${data.version}（当前 $current）" }
+                        ?: "当前数据版本 $current，未发现新版",
+                    canUpdateData = availableData != null
+                ) }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _uiState.update { it.copy(dataUpdateMessage = "检查失败，请稍后重试：${e.message}") }
+            } finally {
+                _uiState.update { it.copy(checkingData = false) }
+            }
         }
     }
 
-    /**
-     * 开始更新数据
-     */
-    fun startUpdate() {
-        viewModelScope.launch {
-            dataUpdateManager.performUpdate()
+    fun startDataUpdate() {
+        val data = availableData ?: return
+        if (dataOperation?.isActive == true) return
+        dataOperation = viewModelScope.launch {
+            _uiState.update { it.copy(checkingData = true) }
+            try {
+                if (downloadManager.updateDatabase(data)) {
+                    availableData = null
+                    _uiState.update { it.copy(dataUpdateMessage = "已更新至数据版本 ${data.version}", canUpdateData = false) }
+                }
+            } finally {
+                _uiState.update { it.copy(checkingData = false) }
+            }
         }
-    }
-
-    /**
-     * 重置更新状态
-     */
-    fun resetUpdateStatus() {
-        _uiState.update { it.copy(updateStatus = UpdateStatus.Idle) }
     }
 
     fun checkForAppUpdate() {
@@ -329,28 +251,6 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             downloadManager.deleteLocalDatabase()
             onComplete()
-        }
-    }
-
-    /**
-     * 设置服务器配置
-     */
-    fun setServerConfig(url: String) {
-        viewModelScope.launch {
-            dataStore.setServerConfig(url)
-            // 重新创建 API 服务
-            apiServiceProvider.recreateApiService()
-        }
-    }
-
-    /**
-     * 恢复默认服务器配置
-     */
-    fun resetServerConfig() {
-        viewModelScope.launch {
-            dataStore.clearServerConfig()
-            // 重新创建 API 服务
-            apiServiceProvider.recreateApiService()
         }
     }
 
@@ -413,24 +313,15 @@ class SettingsViewModel @Inject constructor(
  * 设置 UI 状态
  */
 data class SettingsUiState(
+    val dataUpdateMessage: String = "从 GitHub 检查新版诗词数据",
+    val canUpdateData: Boolean = false,
+    val checkingData: Boolean = false,
     val fontSize: Int = 1,
     val isVerticalLayout: Boolean = false,
     val darkMode: Int = -1,
-    val dataVersion: String = "1.0.0",
     val appVersionName: String = "1.0.0",
-    val updateStatus: UpdateStatus = UpdateStatus.Idle,
-    val hasPendingUpdate: Boolean = false,
     val hasPendingAppUpdate: Boolean = false,
     val appUpdateStatus: AppUpdateUiStatus = AppUpdateUiStatus.Idle,
-    // 服务器配置
-    val serverUrl: String = "",
-)
-
-private data class PendingUpdateInfo(
-    val hasUpdate: Boolean,
-    val version: Int,
-    val versionName: String,
-    val changelog: String
 )
 
 private data class PendingAppUpdateInfo(

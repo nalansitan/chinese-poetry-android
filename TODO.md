@@ -5,11 +5,15 @@
 
 ## 当前 Release 准备
 
+- [x] 首次初始化限时检查签名数据清单，支持新版失败回退内置包；已安装数据库不自动覆盖。
+
 - [x] 生成正式签名，配置 GitHub `release` 环境的四个签名 Secrets，并验证本地 APK 签名。
 
-- [ ] 提供此前清洗好的诗词数据库（`server/poetry.db` 或本机绝对路径；目前项目目录没有 `.db` / `.db.gz`）。
-- [ ] 校验数据库，生成 `.db.gz`、摘要清单，上传独立的数据 Release。
-- [ ] 配置 Actions 的 `POETRY_DATABASE_URL`、`POETRY_DATABASE_SHA256`。
+- [x] 已于 2026-11-07 收到 `server/poetry.db`，341,634 首诗词、13,504 位作者。
+- [x] 数据库完整性检查、压缩打包及解压摘要核验通过，产物位于 Git 忽略的 `dist/data-2026-11-07/`。
+- [x] 核实维护者提供的历史源仓库 commit `909646524737b70544ee7ae17cb76868a0bc8a55`，记录约 2026 年 5 月生成（回忆值、未复现）。
+- [x] 已发布独立数据 Release `data-2026-11-07`，附件包含来源核验范围和未知获取日期说明。
+- [x] 已配置并读回验证 GitHub `release` 环境的 `POETRY_DATABASE_URL`、`POETRY_DATABASE_SHA256`。
 - [ ] 完成真机下载、断点续传、本地导入与覆盖升级验收。
 - [ ] 正式签名密钥离线备份（本地 Git 忽略不等于备份）。
 

@@ -58,4 +58,20 @@ class DatabasePackageTest {
         }
         assertFalse(output.exists())
     }
+    @Test fun importsPreviouslyVerifiedNewerPackageAndReturnsItsHash() {
+        val output = temporary.newFile()
+        assertEquals(hash, DatabasePackage.unpack(ByteArrayInputStream(gzip()), output,
+            "0".repeat(64), acceptedSha256 = setOf("0".repeat(64), hash)))
+        assertArrayEquals(database, output.readBytes())
+    }
+
+    @Test fun cannotImportPackageOutsideTrustedHashes() {
+        val output = temporary.newFile()
+        assertThrows(IllegalArgumentException::class.java) {
+            DatabasePackage.unpack(ByteArrayInputStream(gzip()), output,
+                "0".repeat(64), acceptedSha256 = setOf("0".repeat(64), "1".repeat(64)))
+        }
+        assertFalse(output.exists())
+    }
+
 }

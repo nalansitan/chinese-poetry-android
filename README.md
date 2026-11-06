@@ -46,22 +46,7 @@ initial setup; afterward, poems can be read, searched, and saved offline.
 
 无需自建服务器的压缩包下载、本地导入和完整发布步骤见 [GitHub Release 指南](docs/github-release.md)。
 
-以下为可选的自建 API 方式：
-
-详见 [server/README.md](server/README.md)
-
-```bash
-cd server
-
-# 安装依赖
-poetry install
-
-# 生成数据库（需要提前克隆 chinese-poetry）
-poetry run convert ../chinese-poetry ./poetry.db
-
-# 启动服务
-poetry run serve
-```
+`server/` 保留数据转换工具和历史服务代码；当前应用以 GitHub Release 为分发渠道，不提供自建服务配置入口。
 
 ### 2. 运行 Android 应用
 
@@ -119,50 +104,20 @@ AAB 输出目录：
 说明：
 - 未提供 `keystore.properties` 时，项目仍可正常进行日常开发编译。
 - `chinese-poetry-android-release-keystore.jks` 和 `keystore.properties` 请务必妥善备份，不要提交到版本库。
-- 默认服务地址可通过 Gradle 属性 `POETRY_BASE_URL` 或 `local.properties` 中的 `BASE_URL` 覆盖；不要把永久服务端凭据编入 APK。
-- GitHub Release 工作流支持 `POETRY_DATABASE_URL` + `POETRY_DATABASE_SHA256` 直接分发数据库；自建 API 模式使用 `POETRY_BASE_URL`。签名文件和密码配置在 Actions Secrets 中，详见发布指南。
+- GitHub Release 工作流支持 `POETRY_DATABASE_URL` + `POETRY_DATABASE_SHA256` 直接分发数据库。签名文件和密码配置在 Actions Secrets 中，详见发布指南。
 - 发布版本的 `versionCode` 使用 `major * 10000 + minor * 100 + patch`（缺少 patch 时按 0）；工作流会同时校验 tag、`versionName` 和 `versionCode`。
-
-## 部署指南
-
-详见 [server/README.md](server/README.md)
-
-服务端使用 Nginx + FastAPI 部署。Android 客户端使用公开 HTTPS 下载，不再发送 HTTP Basic Auth；设置中的服务器地址用于可选的更新 API。
 
 ## 数据更新
 
-### 增量更新
-
-修改 `server/poetry_data_server.py` 中的 `get_update_data` 函数：
-
-```python
-def get_update_data(client_version: int):
-    if client_version >= CURRENT_VERSION:
-        return {"hasUpdate": False, "newVersion": CURRENT_VERSION}
-    
-    return {
-        "hasUpdate": True,
-        "newVersion": 2,
-        "updateType": "incremental",
-        "poems": [
-            # 新增/修改的诗词（含评论、赏析）
-        ],
-        "changelog": "新增诗词点评功能"
-    }
-```
-
-### 全量更新
-
-可以生成新的 `poetry.db` 供首次安装下载。当前客户端不会在运行中接受 `full`
-更新，因为内容库仍与收藏、阅读历史共用一个 Room 数据库；直接替换会丢失用户数据。
-日常内容更新请先使用增量响应，待用户数据拆库后再启用安全的全量升级。
+在设置中点击“检查数据更新”，检查 GitHub 中有签名清单的 `data-*` Release。
+发现新版后下载并校验数据包，在事务中按 ID 合并诗词与作者，保留收藏、浏览历史及新包中缺失的旧记录。
+网络或校验失败时保留本地数据。数据发布流程见 [GitHub Release 指南](docs/github-release.md)。
 
 ## 功能特性
 
 - [x] 离线阅读（30万+首诗词）
-- [x] 首次启动下载数据
-- [x] 增量数据更新
-- [x] 动态服务器配置
+- [x] 首次启动检查签名数据清单，优先下载兼容新版，失败回退内置版本
+- [x] GitHub 数据版本检查与保留用户记录的内容更新
 - [x] 公开 HTTPS 数据包、gzip 解压与本地文件导入
 - [x] 收藏、搜索、分类浏览
 - [x] 竖排/横排切换

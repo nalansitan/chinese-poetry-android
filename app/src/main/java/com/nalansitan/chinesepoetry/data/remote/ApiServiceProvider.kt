@@ -65,11 +65,8 @@ class ApiServiceProvider(
     }
 
     private fun createPublicApiService(): PoetryApiService {
-        val userUrl = runBlocking { dataStore.serverUrl.first() }
-        val baseUrl = dataStore.getEffectiveServerUrl(userUrl)
-
         val retrofit = Retrofit.Builder()
-            .baseUrl(baseUrl)
+            .baseUrl("https://github.com/")
             .client(createPublicOkHttpClient())
             .addConverterFactory(GsonConverterFactory.create())
             .build()

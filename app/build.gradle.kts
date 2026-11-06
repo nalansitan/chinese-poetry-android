@@ -21,6 +21,12 @@ val databaseUrl = providers.gradleProperty("POETRY_DATABASE_URL")
 val databaseSha256 = providers.gradleProperty("POETRY_DATABASE_SHA256")
     .orElse(localProperties.getProperty("DATABASE_SHA256", ""))
 
+val databaseVersion = providers.gradleProperty("POETRY_DATABASE_VERSION")
+    .orElse(localProperties.getProperty("DATABASE_VERSION", "2026110701"))
+require(databaseVersion.get().toLongOrNull()?.let { it > 0 } == true) {
+    "POETRY_DATABASE_VERSION must be a positive integer"
+}
+
 fun buildConfigString(value: String) = "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
 
 require(databaseUrl.get().isEmpty() || (
@@ -49,6 +55,7 @@ android {
         versionCode = 10200
         versionName = "1.2"
 
+        buildConfigField("long", "DATABASE_VERSION", "${databaseVersion.get()}L")
         buildConfigField("String", "DATABASE_URL", buildConfigString(databaseUrl.get()))
         buildConfigField("String", "DATABASE_SHA256", buildConfigString(databaseSha256.get()))
 
@@ -171,6 +178,7 @@ dependencies {
 
     // Testing
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.xerial:sqlite-jdbc:3.41.2.2")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")

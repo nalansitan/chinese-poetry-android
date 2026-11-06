@@ -7,7 +7,8 @@ import java.util.zip.GZIPInputStream
 
 /** 同时支持原始 SQLite 和 gzip 包；摘要始终针对解压后的数据库。 */
 object DatabasePackage {
-    fun unpack(input: InputStream, output: File, expectedSha256: String, maxBytes: Long = 2L * 1024 * 1024 * 1024) {
+    fun unpack(input: InputStream, output: File, expectedSha256: String, maxBytes: Long = 2L * 1024 * 1024 * 1024, acceptedSha256: Set<String> = setOf(expectedSha256)): String {
+        var actualHash = ""
         try {
             input.buffered().use { buffered ->
                 buffered.mark(2)
@@ -29,8 +30,9 @@ object DatabasePackage {
                         }
                     }
                     val actual = digest.digest().joinToString("") { "%02x".format(it) }
-                    require(expectedSha256.isBlank() || actual.equals(expectedSha256, ignoreCase = true)) {
-                        "数据库 SHA-256 校验失败，请选择本版本对应的数据包"
+                    actualHash = actual
+                    require(acceptedSha256.any { it.isBlank() || actual.equals(it, ignoreCase = true) }) {
+                        "数据库 SHA-256 校验失败，请选择内置版本或已验证新版的数据包"
                     }
                 }
             }
@@ -39,6 +41,7 @@ object DatabasePackage {
             require(size == 16 && header.contentEquals("SQLite format 3\u0000".toByteArray(Charsets.US_ASCII))) {
                 "请选择诗词数据库 .db 或 .db.gz 文件"
             }
+            return actualHash
         } catch (error: Exception) {
             output.delete()
             throw error

@@ -1,5 +1,19 @@
 package com.nalansitan.chinesepoetry.presentation.ui.components
 
+import android.content.ActivityNotFoundException
+import android.content.Intent
+import android.net.Uri
+import android.widget.Toast
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.filled.Code
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.OpenInNew
+import androidx.compose.material3.Surface
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -24,6 +38,14 @@ fun PoetryAboutDialog(
     versionName: String,
     onDismiss: () -> Unit
 ) {
+    val context = LocalContext.current
+    val openLink: (String) -> Unit = { url ->
+        try {
+            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+        } catch (_: ActivityNotFoundException) {
+            Toast.makeText(context, "未找到可打开链接的浏览器", Toast.LENGTH_SHORT).show()
+        }
+    }
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = PoetryColors.PaperWhite,
@@ -38,7 +60,7 @@ fun PoetryAboutDialog(
         },
         text = {
             Column(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Text(
@@ -52,6 +74,21 @@ fun PoetryAboutDialog(
                 AboutInfoRow("版本", versionName)
                 AboutInfoRow("作者", "纳兰斯坦、爱因容若")
                 AboutInfoRow("数据来源", "开源项目")
+
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    AboutLinkRow(
+                        title = "项目 GitHub",
+                        subtitle = "源码 · 版本发布 · 问题反馈",
+                        icon = Icons.Default.Code,
+                        onClick = { openLink("https://github.com/nalansitan/chinese-poetry-android") }
+                    )
+                    AboutLinkRow(
+                        title = "作者 GitHub",
+                        subtitle = "@nalansitan",
+                        icon = Icons.Default.Person,
+                        onClick = { openLink("https://github.com/nalansitan") }
+                    )
+                }
 
                 HorizontalDivider(color = PoetryColors.DividerColor)
 
@@ -103,5 +140,35 @@ private fun AboutInfoRow(label: String, value: String) {
             style = MaterialTheme.typography.bodyMedium,
             color = PoetryColors.InkBlack
         )
+    }
+}
+
+@Composable
+private fun AboutLinkRow(
+    title: String,
+    subtitle: String,
+    icon: ImageVector,
+    onClick: () -> Unit
+) {
+    Surface(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        color = PoetryColors.LightGray
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Icon(icon, contentDescription = null, tint = PoetryColors.CinnabarRed,
+                modifier = Modifier.size(22.dp))
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(title, style = MaterialTheme.typography.titleSmall, color = PoetryColors.InkBlack)
+                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = PoetryColors.LightInk)
+            }
+            Icon(Icons.Default.OpenInNew, contentDescription = "打开外部链接",
+                tint = PoetryColors.LightInk, modifier = Modifier.size(18.dp))
+        }
     }
 }

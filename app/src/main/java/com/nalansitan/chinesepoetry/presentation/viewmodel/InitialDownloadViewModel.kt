@@ -3,11 +3,8 @@ package com.nalansitan.chinesepoetry.presentation.viewmodel
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.nalansitan.chinesepoetry.BuildConfig
-import com.nalansitan.chinesepoetry.data.local.prefs.DataStoreManager
 import com.nalansitan.chinesepoetry.data.manager.DatabaseDownloadManager
 import com.nalansitan.chinesepoetry.data.manager.DownloadState
-import com.nalansitan.chinesepoetry.data.remote.ApiServiceProvider
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -21,47 +18,19 @@ import javax.inject.Inject
  */
 @HiltViewModel
 class InitialDownloadViewModel @Inject constructor(
-    private val downloadManager: DatabaseDownloadManager,
-    private val dataStore: DataStoreManager,
-    private val apiServiceProvider: ApiServiceProvider
+    private val downloadManager: DatabaseDownloadManager
 ) : ViewModel() {
+
+    val sourceDescription = downloadManager.sourceDescription
 
     val downloadState: StateFlow<DownloadState> = downloadManager.downloadState
 
     private val _databaseSize = MutableStateFlow("计算中...")
     val databaseSize: StateFlow<String> = _databaseSize.asStateFlow()
 
-    private val _serverUrl = MutableStateFlow("")
-    val serverUrl: StateFlow<String> = _serverUrl.asStateFlow()
-
-    val defaultServerUrl: String = BuildConfig.BASE_URL
-
     init {
         checkDatabaseStatus()
         loadDatabaseSize()
-        loadServerConfig()
-    }
-
-    private fun loadServerConfig() {
-        viewModelScope.launch {
-            dataStore.serverUrl.collect { savedUrl ->
-                _serverUrl.value = if (savedUrl == BuildConfig.BASE_URL) "" else savedUrl
-            }
-        }
-    }
-
-    fun setServerConfig(url: String) {
-        viewModelScope.launch {
-            dataStore.setServerConfig(url)
-            apiServiceProvider.recreateApiService()
-        }
-    }
-
-    fun resetServerConfig() {
-        viewModelScope.launch {
-            dataStore.clearServerConfig()
-            apiServiceProvider.recreateApiService()
-        }
     }
 
     private fun checkDatabaseStatus() {
@@ -73,6 +42,7 @@ class InitialDownloadViewModel @Inject constructor(
 
     private fun loadDatabaseSize() {
         viewModelScope.launch {
+            if (downloadManager.isDatabaseExists()) return@launch
             val size = downloadManager.getRemoteDatabaseSize()
             _databaseSize.value = size?.let { formatFileSize(it) } ?: "未知"
         }

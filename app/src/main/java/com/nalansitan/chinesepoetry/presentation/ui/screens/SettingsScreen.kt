@@ -18,19 +18,15 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Brightness4
-import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FormatSize
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.TextRotationNone
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Divider
@@ -60,7 +56,6 @@ import com.nalansitan.chinesepoetry.presentation.ui.components.PoetryAboutDialog
 import com.nalansitan.chinesepoetry.presentation.ui.theme.PoetryColors
 import com.nalansitan.chinesepoetry.presentation.viewmodel.AppUpdateUiStatus
 import com.nalansitan.chinesepoetry.presentation.viewmodel.SettingsViewModel
-import com.nalansitan.chinesepoetry.presentation.viewmodel.UpdateStatus
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -69,9 +64,9 @@ fun SettingsScreen(
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val dataDownloadState by viewModel.dataDownloadState.collectAsState()
     var showFontSizeDialog by remember { mutableStateOf(false) }
     var showDarkModeDialog by remember { mutableStateOf(false) }
-    var showServerConfigDialog by remember { mutableStateOf(false) }
     var showClearDataDialog by remember { mutableStateOf(false) }
     var showAboutDialog by remember { mutableStateOf(false) }
     val context = LocalContext.current
@@ -154,52 +149,34 @@ fun SettingsScreen(
 
             // 数据管理
             SettingsSection(title = "数据管理") {
-                // 检查更新
                 SettingsItem(
-                    icon = Icons.Default.Refresh,
+                    icon = Icons.Default.Download,
                     title = "检查数据更新",
-                    showBadge = uiState.hasPendingUpdate,
-                    subtitle = when (val status = uiState.updateStatus) {
-                        is UpdateStatus.Idle -> "当前版本: ${uiState.dataVersion}"
-                        is UpdateStatus.Checking -> "正在检查更新..."
-                        is UpdateStatus.NoUpdate -> "已是最新版本"
-                        is UpdateStatus.HasUpdate -> "发现新版本 ${status.newVersion}"
-                        is UpdateStatus.Downloading -> "正在下载更新... ${status.progress}%"
-                        is UpdateStatus.Success -> "更新完成"
-                        is UpdateStatus.Error -> "更新失败: ${status.message}"
+                    subtitle = when (val state = dataDownloadState) {
+                        is com.nalansitan.chinesepoetry.data.manager.DownloadState.Downloading -> "下载数据中 ${state.progress}%"
+                        is com.nalansitan.chinesepoetry.data.manager.DownloadState.Installing -> "正在更新数据，请稍候…"
+                        is com.nalansitan.chinesepoetry.data.manager.DownloadState.Error -> "更新失败，原数据保留：${state.message}"
+                        else -> uiState.dataUpdateMessage
                     },
-                    onClick = { viewModel.checkForUpdate() }
+                    onClick = { viewModel.checkForDataUpdate() }
                 )
-
-                // 显示更新按钮（当有新版本时）
-                if (uiState.updateStatus is UpdateStatus.HasUpdate) {
-                    Divider(color = PoetryColors.DividerColor)
+                if (uiState.canUpdateData && !uiState.checkingData) {
                     SettingsActionItem(
                         icon = Icons.Default.Download,
-                        title = "立即更新",
-                        subtitle = (uiState.updateStatus as UpdateStatus.HasUpdate).changelog,
-                        actionText = "下载",
-                        onAction = { viewModel.startUpdate() }
+                        title = "下载并更新数据",
+                        subtitle = "保留收藏和浏览历史，无需更新应用",
+                        actionText = "更新",
+                        onAction = { viewModel.startDataUpdate() }
                     )
                 }
-
-                // 显示更新进度（下载中）
-                if (uiState.updateStatus is UpdateStatus.Downloading) {
-                    Divider(color = PoetryColors.DividerColor)
-                    SettingsProgressItem(
-                        progress = (uiState.updateStatus as UpdateStatus.Downloading).progress,
-                        title = "正在下载更新..."
-                    )
-                }
-
                 Divider(color = PoetryColors.DividerColor)
 
                 // 清除并重新下载
                 SettingsItem(
                     icon = Icons.Default.Delete,
                     title = "清除并重新下载数据",
-                    subtitle = "删除本地数据库，重新从服务器下载",
-                    onClick = { showClearDataDialog = true }
+                    subtitle = "删除本地数据库，从 GitHub 下载或导入数据包",
+                    onClick = { if (!uiState.checkingData) showClearDataDialog = true }
                 )
             }
 
@@ -260,20 +237,6 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // 服务器配置
-            SettingsSection(title = "服务器配置") {
-                SettingsItem(
-                    icon = Icons.Default.Cloud,
-                    title = "服务器地址",
-                    subtitle = uiState.serverUrl.ifBlank { "当前地址：默认" }.let { subtitle ->
-                        if (uiState.serverUrl.isBlank()) subtitle else "当前地址：${uiState.serverUrl}"
-                    },
-                    onClick = { showServerConfigDialog = true }
-                )
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
             // 关于
             SettingsSection(title = "关于") {
                 SettingsItem(
@@ -306,22 +269,6 @@ fun SettingsScreen(
             onSelect = {
                 viewModel.setDarkMode(it)
                 showDarkModeDialog = false
-            }
-        )
-    }
-
-    // 服务器配置对话框
-    if (showServerConfigDialog) {
-        ServerConfigDialog(
-            currentUrl = uiState.serverUrl,
-            onDismiss = { showServerConfigDialog = false },
-            onSave = { url ->
-                viewModel.setServerConfig(url)
-                showServerConfigDialog = false
-            },
-            onReset = {
-                viewModel.resetServerConfig()
-                showServerConfigDialog = false
             }
         )
     }
@@ -642,50 +589,4 @@ private fun SettingsProgressItem(
             trackColor = PoetryColors.DividerColor
         )
     }
-}
-
-@Composable
-private fun ServerConfigDialog(
-    currentUrl: String,
-    onDismiss: () -> Unit,
-    onSave: (String) -> Unit,
-    onReset: () -> Unit
-) {
-    var url by remember { mutableStateOf(currentUrl) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("服务器配置") },
-        text = {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                OutlinedTextField(
-                    value = url,
-                    onValueChange = { url = it },
-                    label = { Text("服务器地址") },
-                    placeholder = { Text("https://your-server.com/") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                Text(
-                    text = "留空则使用内置配置",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = PoetryColors.MediumGray
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = { onSave(url) }) {
-                Text("保存")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onReset) {
-                Text("恢复默认")
-            }
-        }
-    )
 }

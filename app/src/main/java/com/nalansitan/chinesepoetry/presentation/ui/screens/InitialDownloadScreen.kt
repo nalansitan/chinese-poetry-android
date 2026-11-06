@@ -1,6 +1,5 @@
 package com.nalansitan.chinesepoetry.presentation.ui.screens
 
-import com.nalansitan.chinesepoetry.BuildConfig
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.rememberScrollState
@@ -17,15 +16,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Book
 import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -54,9 +49,8 @@ fun InitialDownloadScreen(
     viewModel: InitialDownloadViewModel = hiltViewModel()
 ) {
     val downloadState by viewModel.downloadState.collectAsState()
+    val sourceDescription by viewModel.sourceDescription.collectAsState()
     val databaseSize by viewModel.databaseSize.collectAsState()
-    val serverUrl by viewModel.serverUrl.collectAsState()
-    var showServerConfigDialog by remember { mutableStateOf(false) }
 
     val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri?.let(viewModel::importDatabase)
@@ -70,20 +64,6 @@ fun InitialDownloadScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            // 右上角设置按钮
-            if (BuildConfig.DATABASE_URL.isBlank()) IconButton(
-                onClick = { showServerConfigDialog = true },
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(8.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Settings,
-                    contentDescription = "服务器设置",
-                    tint = PoetryColors.MediumGray
-                )
-            }
-
             // 主内容
             Column(
                 modifier = Modifier
@@ -139,6 +119,11 @@ fun InitialDownloadScreen(
                     )
                 }
 
+                is DownloadState.Checking -> {
+                    CircularProgressIndicator(color = PoetryColors.CinnabarRed)
+                    Text("正在选择初始化数据…")
+                }
+
                 is DownloadState.Downloading -> {
                     DownloadingContent(
                         progress = state.progress,
@@ -164,6 +149,10 @@ fun InitialDownloadScreen(
                     )
                 }
                 }
+                if (downloadState !is DownloadState.Success) {
+                    Text(sourceDescription, style = MaterialTheme.typography.bodySmall,
+                        textAlign = TextAlign.Center, color = PoetryColors.MediumGray)
+                }
                 if (downloadState is DownloadState.Idle || downloadState is DownloadState.Error) {
                     TextButton(onClick = { importLauncher.launch(arrayOf("*/*")) }) {
                         Text("从本地导入数据包")
@@ -179,77 +168,6 @@ fun InitialDownloadScreen(
         }
     }
 
-    // 服务器配置对话框
-    if (showServerConfigDialog) {
-        InitialServerConfigDialog(
-            currentUrl = serverUrl,
-            onDismiss = { showServerConfigDialog = false },
-            onSave = { url ->
-                viewModel.setServerConfig(url)
-                showServerConfigDialog = false
-            },
-            onReset = {
-                viewModel.resetServerConfig()
-                showServerConfigDialog = false
-            }
-        )
-    }
-}
-
-@Composable
-private fun InitialServerConfigDialog(
-    currentUrl: String,
-    onDismiss: () -> Unit,
-    onSave: (String) -> Unit,
-    onReset: () -> Unit
-) {
-    var url by remember { mutableStateOf(currentUrl) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("服务器配置") },
-        text = {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Text(
-                    text = if (currentUrl.isBlank()) {
-                        "当前地址：默认"
-                    } else {
-                        "当前地址：$currentUrl"
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = PoetryColors.MediumGray
-                )
-
-                OutlinedTextField(
-                    value = url,
-                    onValueChange = { url = it },
-                    label = { Text("服务器地址") },
-                    placeholder = { Text("https://your-server.com/") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                Text(
-                    text = "留空则使用内置配置",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = PoetryColors.MediumGray
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = { onSave(url) }) {
-                Text("保存")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onReset) {
-                Text("恢复默认")
-            }
-        }
-    )
 }
 
 @Composable

@@ -10,6 +10,7 @@ import com.nalansitan.chinesepoetry.data.local.entity.Dynasty
 import com.nalansitan.chinesepoetry.data.local.entity.PoemEntity
 import com.nalansitan.chinesepoetry.data.local.entity.PoemType
 import com.nalansitan.chinesepoetry.domain.model.Poem
+import com.nalansitan.chinesepoetry.domain.model.splitPoemContent
 import com.nalansitan.chinesepoetry.domain.repository.PoemRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -197,7 +198,7 @@ class PoemRepositoryImpl @Inject constructor(
             authorName = authorName,
             authorId = authorId,
             dynasty = Dynasty.fromValue(dynasty),
-            content = content.split("|").filter { it.isNotBlank() },
+            content = splitPoemContent(content),
             type = PoemType.fromValue(type),
             rhythmic = rhythmic,
             chapter = chapter,

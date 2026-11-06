@@ -8,3 +8,6 @@ BASE_URL=https://example.com/
 # DATABASE_URL=https://github.com/owner/repo/releases/download/data-v1/poetry.db.gz
 # SHA-256 of the UNCOMPRESSED database (required with DATABASE_URL).
 # DATABASE_SHA256=
+
+# Monotonic version of the built-in fallback database; update together with URL and SHA256.
+# DATABASE_VERSION=2026110701
