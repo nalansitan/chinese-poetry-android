@@ -3,3 +3,8 @@
 
 # Public endpoint only. The URL must end with a slash.
 BASE_URL=https://example.com/
+
+# Optional public .db.gz / .db download, independent of the API server.
+# DATABASE_URL=https://github.com/owner/repo/releases/download/data-v1/poetry.db.gz
+# SHA-256 of the UNCOMPRESSED database (required with DATABASE_URL).
+# DATABASE_SHA256=

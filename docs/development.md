@@ -9,6 +9,22 @@
 
 项目当前使用 Kotlin、Jetpack Compose、Room、Hilt、Retrofit、OkHttp、Paging 和 WorkManager。依赖版本以 Gradle 文件为准。
 
+## 使用 mise 安装 JDK
+
+项目的 Android Gradle Plugin 8.2.2、Java/Kotlin 编译目标和 CI 均使用 JDK 17。
+根目录 `mise.toml` 声明 Temurin 17，可执行：
+
+```bash
+mise install
+mise exec -- java -version
+mise exec -- ./gradlew testDebugUnitTest lintDebug assembleDebug
+```
+
+新项目也可用 `mise use java@temurin-17` 安装并创建配置。
+`mise exec` 会设置 JAVA_HOME，无需修改系统 Java，也无需使用 sudo。
+JDK 不包含 Android SDK；仍需通过 Android Studio 或 Android command-line tools
+安装 Android SDK Platform 34 / Build Tools，并设置 `ANDROID_HOME` 或 `sdk.dir`。
+
 ## 本地配置
 
 根目录的 `local.properties` 不提交 Git。本机至少需要 Android SDK 配置；现有构建还从该文件读取：

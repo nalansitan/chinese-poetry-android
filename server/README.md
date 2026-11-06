@@ -89,18 +89,13 @@ server {
     # SSL 配置...
     
     location /api/ {
-        # Basic Auth
-        auth_basic "Poetry API";
-        auth_basic_user_file /etc/nginx/.htpasswd;
-        
-        proxy_pass http://localhost:8000/;
+        proxy_pass http://localhost:8000/api/;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     }
 
     location /public/apk/ {
-        auth_basic off;
         proxy_pass http://localhost:8000/public/apk/;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
@@ -109,10 +104,7 @@ server {
 }
 ```
 
-生成密码文件：
-```bash
-htpasswd -c /etc/nginx/.htpasswd poetry_user
-```
+客户端已移除 Basic Auth，数据接口应允许公开读取。仅分发首次初始化数据时可直接使用 GitHub Release，见 [发布指南](../docs/github-release.md)。
 
 ## API 接口
 

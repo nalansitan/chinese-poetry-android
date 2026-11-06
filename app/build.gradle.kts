@@ -15,6 +15,21 @@ val localProperties = Properties().apply {
 val baseUrl = providers.gradleProperty("POETRY_BASE_URL")
     .orElse(localProperties.getProperty("BASE_URL", "https://example.com/"))
 
+// 可直接指向对象存储的不可变版本文件；留空时兼容自建 API。
+val databaseUrl = providers.gradleProperty("POETRY_DATABASE_URL")
+    .orElse(localProperties.getProperty("DATABASE_URL", ""))
+val databaseSha256 = providers.gradleProperty("POETRY_DATABASE_SHA256")
+    .orElse(localProperties.getProperty("DATABASE_SHA256", ""))
+
+fun buildConfigString(value: String) = "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
+
+require(databaseUrl.get().isEmpty() || (
+    databaseUrl.get().startsWith("https://") && !databaseUrl.get().any { it.isWhitespace() }
+)) { "POETRY_DATABASE_URL must be a public HTTPS URL" }
+require(databaseUrl.get().isEmpty() || databaseSha256.get().matches(Regex("[a-fA-F0-9]{64}"))) {
+    "POETRY_DATABASE_SHA256 must contain the database file SHA-256 when using object storage"
+}
+
 val keystorePropertiesFile = rootProject.file("keystore.properties")
 val keystoreProperties = Properties().apply {
     if (keystorePropertiesFile.exists()) {
@@ -33,6 +48,9 @@ android {
         // major * 10000 + minor * 100 + patch；Release 工作流会强制校验。
         versionCode = 10200
         versionName = "1.2"
+
+        buildConfigField("String", "DATABASE_URL", buildConfigString(databaseUrl.get()))
+        buildConfigField("String", "DATABASE_SHA256", buildConfigString(databaseSha256.get()))
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -54,8 +72,6 @@ android {
     buildTypes {
         debug {
             buildConfigField("String", "BASE_URL", "\"${baseUrl.get()}\"")
-            buildConfigField("String", "API_USERNAME", "\"\"")
-            buildConfigField("String", "API_PASSWORD", "\"\"")
         }
         release {
             isMinifyEnabled = false
@@ -67,8 +83,6 @@ android {
                 signingConfig = it
             }
             buildConfigField("String", "BASE_URL", "\"${baseUrl.get()}\"")
-            buildConfigField("String", "API_USERNAME", "\"\"")
-            buildConfigField("String", "API_PASSWORD", "\"\"")
         }
     }
     compileOptions {
@@ -139,7 +153,6 @@ dependencies {
 
     // DataStore
     implementation("androidx.datastore:datastore-preferences:1.0.0")
-    implementation("androidx.security:security-crypto:1.1.0-alpha06")
 
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")

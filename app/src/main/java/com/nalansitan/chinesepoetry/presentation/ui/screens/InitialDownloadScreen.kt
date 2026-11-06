@@ -1,5 +1,10 @@
 package com.nalansitan.chinesepoetry.presentation.ui.screens
 
+import com.nalansitan.chinesepoetry.BuildConfig
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,8 +18,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Book
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -34,8 +37,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -55,9 +56,11 @@ fun InitialDownloadScreen(
     val downloadState by viewModel.downloadState.collectAsState()
     val databaseSize by viewModel.databaseSize.collectAsState()
     val serverUrl by viewModel.serverUrl.collectAsState()
-    val serverUsername by viewModel.serverUsername.collectAsState()
-    val serverPassword by viewModel.serverPassword.collectAsState()
     var showServerConfigDialog by remember { mutableStateOf(false) }
+
+    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        uri?.let(viewModel::importDatabase)
+    }
 
     Scaffold(
         containerColor = PoetryColors.PaperWhite
@@ -68,7 +71,7 @@ fun InitialDownloadScreen(
                 .padding(paddingValues)
         ) {
             // 右上角设置按钮
-            IconButton(
+            if (BuildConfig.DATABASE_URL.isBlank()) IconButton(
                 onClick = { showServerConfigDialog = true },
                 modifier = Modifier
                     .align(Alignment.TopEnd)
@@ -85,6 +88,7 @@ fun InitialDownloadScreen(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
                     .padding(32.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
@@ -144,6 +148,11 @@ fun InitialDownloadScreen(
                     )
                 }
 
+                is DownloadState.Installing -> {
+                    CircularProgressIndicator(color = PoetryColors.CinnabarRed)
+                    Text("正在解压、校验并安装诗词数据…")
+                }
+
                 is DownloadState.Success -> {
                     SuccessContent(onContinue = onDownloadComplete)
                 }
@@ -155,6 +164,17 @@ fun InitialDownloadScreen(
                     )
                 }
                 }
+                if (downloadState is DownloadState.Idle || downloadState is DownloadState.Error) {
+                    TextButton(onClick = { importLauncher.launch(arrayOf("*/*")) }) {
+                        Text("从本地导入数据包")
+                    }
+                    Text(
+                        "可在电脑下载 .db.gz 或 .db 文件，传到手机后导入",
+                        style = MaterialTheme.typography.bodySmall,
+                        textAlign = TextAlign.Center,
+                        color = PoetryColors.MediumGray
+                    )
+                }
             }
         }
     }
@@ -163,11 +183,9 @@ fun InitialDownloadScreen(
     if (showServerConfigDialog) {
         InitialServerConfigDialog(
             currentUrl = serverUrl,
-            currentUsername = serverUsername,
-            currentPassword = serverPassword,
             onDismiss = { showServerConfigDialog = false },
-            onSave = { url, username, password ->
-                viewModel.setServerConfig(url, username, password)
+            onSave = { url ->
+                viewModel.setServerConfig(url)
                 showServerConfigDialog = false
             },
             onReset = {
@@ -181,18 +199,11 @@ fun InitialDownloadScreen(
 @Composable
 private fun InitialServerConfigDialog(
     currentUrl: String,
-    currentUsername: String,
-    currentPassword: String,
     onDismiss: () -> Unit,
-    onSave: (String, String, String) -> Unit,
+    onSave: (String) -> Unit,
     onReset: () -> Unit
 ) {
     var url by remember { mutableStateOf(currentUrl) }
-    var username by remember { mutableStateOf(currentUsername) }
-    var password by remember { mutableStateOf(currentPassword) }
-    var showPassword by remember { mutableStateOf(false) }
-    var hasUserEditedPassword by remember { mutableStateOf(false) }
-    val canTogglePasswordVisibility = hasUserEditedPassword || currentPassword.isNotEmpty()
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -221,36 +232,6 @@ private fun InitialServerConfigDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                OutlinedTextField(
-                    value = username,
-                    onValueChange = { username = it },
-                    label = { Text("用户名") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                OutlinedTextField(
-                    value = password,
-                    onValueChange = {
-                        password = it
-                        hasUserEditedPassword = true
-                    },
-                    label = { Text("密码") },
-                    singleLine = true,
-                    visualTransformation = if (showPassword && canTogglePasswordVisibility) VisualTransformation.None else PasswordVisualTransformation(),
-                    trailingIcon = {
-                        if (canTogglePasswordVisibility) {
-                            IconButton(onClick = { showPassword = !showPassword }) {
-                                Icon(
-                                    imageVector = if (showPassword) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                                    contentDescription = if (showPassword) "隐藏密码" else "显示密码"
-                                )
-                            }
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                )
-
                 Text(
                     text = "留空则使用内置配置",
                     style = MaterialTheme.typography.bodySmall,
@@ -259,7 +240,7 @@ private fun InitialServerConfigDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = { onSave(url, username, password) }) {
+            TextButton(onClick = { onSave(url) }) {
                 Text("保存")
             }
         },
@@ -373,7 +354,7 @@ private fun formatFileSize(bytes: Long): String {
 private fun SuccessContent(onContinue: () -> Unit) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
-            text = "下载完成！",
+            text = "数据准备完成！",
             style = MaterialTheme.typography.headlineSmall,
             color = PoetryColors.Indigo
         )
@@ -407,7 +388,7 @@ private fun ErrorContent(
 ) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
-            text = "下载失败",
+            text = "数据初始化失败",
             style = MaterialTheme.typography.headlineSmall,
             color = PoetryColors.CinnabarRed
         )
@@ -424,7 +405,7 @@ private fun ErrorContent(
         Spacer(modifier = Modifier.height(12.dp))
 
         Text(
-            text = "可点击右上角 ⚙ 修改服务器地址和认证信息",
+            text = "网络不畅时可重试续传，或导入本地数据包",
             style = MaterialTheme.typography.bodySmall,
             color = PoetryColors.LightInk,
             textAlign = TextAlign.Center

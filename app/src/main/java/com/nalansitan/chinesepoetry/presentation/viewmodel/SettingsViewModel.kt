@@ -124,21 +124,6 @@ class SettingsViewModel @Inject constructor(
             }
         }
 
-        viewModelScope.launch {
-            dataStore.serverUsername.collect { username ->
-                _uiState.update {
-                    it.copy(serverUsername = if (username == BuildConfig.API_USERNAME) "" else username)
-                }
-            }
-        }
-
-        viewModelScope.launch {
-            dataStore.serverPassword.collect { password ->
-                _uiState.update {
-                    it.copy(serverPassword = if (password == BuildConfig.API_PASSWORD) "" else password)
-                }
-            }
-        }
 
         viewModelScope.launch {
             // 监听更新状态并转换为 UI 状态
@@ -350,9 +335,9 @@ class SettingsViewModel @Inject constructor(
     /**
      * 设置服务器配置
      */
-    fun setServerConfig(url: String, username: String, password: String) {
+    fun setServerConfig(url: String) {
         viewModelScope.launch {
-            dataStore.setServerConfig(url, username, password)
+            dataStore.setServerConfig(url)
             // 重新创建 API 服务
             apiServiceProvider.recreateApiService()
         }
@@ -439,8 +424,6 @@ data class SettingsUiState(
     val appUpdateStatus: AppUpdateUiStatus = AppUpdateUiStatus.Idle,
     // 服务器配置
     val serverUrl: String = "",
-    val serverUsername: String = "",
-    val serverPassword: String = ""
 )
 
 private data class PendingUpdateInfo(

@@ -29,6 +29,9 @@ class DataUpdateRepository @Inject constructor(
      * 检查是否有数据更新
      */
     suspend fun checkForUpdate(): UpdateCheckResult {
+        if (!apiServiceProvider.hasUpdateServer()) {
+            return UpdateCheckResult.Error("当前使用离线数据包，未配置在线数据更新服务")
+        }
         return try {
             val response = apiServiceProvider.getApiService().getDataVersion()
             if (response.isSuccessful) {

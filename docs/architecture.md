@@ -48,11 +48,11 @@ Room 数据库名为 `poetry.db`，包含：
 
 数据库兼容逻辑集中在 `DatabaseCompatibility` 和 `PoetryDatabase`。修改表结构时，应提供明确迁移并验证服务端生成的数据库能被当前客户端打开，避免继续依赖破坏性迁移。
 
-DataStore 保存显示设置、数据版本、更新状态、搜索历史和服务器 URL。服务器用户名和密码使用 Android Keystore 支持的加密偏好单独保存，应用数据备份默认关闭。
+DataStore 保存显示设置、数据版本、更新状态、搜索历史和服务器 URL。客户端不再保存服务器账号密码，应用数据备份默认关闭。
 
 ## 网络和依赖注入
 
-`ApiServiceProvider` 根据默认构建配置或用户设置创建 Retrofit 服务。数据 API 和公开 APK API 使用不同的 OkHttp 客户端；前者目前支持 Basic Auth，后者不附带认证头。
+`ApiServiceProvider` 根据默认构建配置或用户设置创建 Retrofit 服务。数据 API 和公开数据包下载均不附带认证头。首次初始化可独立使用固定的公开数据包 URL，或通过系统文件选择器导入。
 
 Hilt 模块职责：
 
@@ -63,3 +63,5 @@ Hilt 模块职责：
 ## 导航
 
 底部导航包含首页、发现、收藏和“我的”。诗词详情、诗词列表、搜索、设置及历史记录使用独立路由。新增页面时，应在 `Screen` 中定义路由，并由 `MainActivity` 统一组装导航图。
+
+应用版本检查由 `GitHubReleaseSource` 直接读取公开 GitHub Releases，独立于可选的诗词更新 API。成功响应与 ETag 本地缓存，限流按服务端响应头退避；APK 使用公开附件 URL 下载。

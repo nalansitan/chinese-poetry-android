@@ -63,4 +63,4 @@ FastAPI 启动后可通过 `/docs` 查看由当前服务端模型生成的 OpenA
 
 ## 当前安全边界
 
-客户端支持为数据 API 添加 Basic Auth，但不再从构建配置内置共享凭据。用户自行配置的用户名和密码保存在 Android Keystore 支持的加密偏好中，网络调试日志会屏蔽 `Authorization`。公开 APK 接口不发送认证信息。
+客户端不再使用 Basic Auth。首次初始化支持公开 `.db.gz` / `.db` 直链和本地导入，详情见 [发布指南](github-release.md)。

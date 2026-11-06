@@ -26,16 +26,12 @@ import androidx.compose.material.icons.filled.FormatSize
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.TextRotationNone
-import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -318,11 +314,9 @@ fun SettingsScreen(
     if (showServerConfigDialog) {
         ServerConfigDialog(
             currentUrl = uiState.serverUrl,
-            currentUsername = uiState.serverUsername,
-            currentPassword = uiState.serverPassword,
             onDismiss = { showServerConfigDialog = false },
-            onSave = { url, username, password ->
-                viewModel.setServerConfig(url, username, password)
+            onSave = { url ->
+                viewModel.setServerConfig(url)
                 showServerConfigDialog = false
             },
             onReset = {
@@ -653,18 +647,11 @@ private fun SettingsProgressItem(
 @Composable
 private fun ServerConfigDialog(
     currentUrl: String,
-    currentUsername: String,
-    currentPassword: String,
     onDismiss: () -> Unit,
-    onSave: (String, String, String) -> Unit,
+    onSave: (String) -> Unit,
     onReset: () -> Unit
 ) {
     var url by remember { mutableStateOf(currentUrl) }
-    var username by remember { mutableStateOf(currentUsername) }
-    var password by remember { mutableStateOf(currentPassword) }
-    var showPassword by remember { mutableStateOf(false) }
-    var hasUserEditedPassword by remember { mutableStateOf(false) }
-    val canTogglePasswordVisibility = hasUserEditedPassword || currentPassword.isNotEmpty()
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -683,36 +670,6 @@ private fun ServerConfigDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                OutlinedTextField(
-                    value = username,
-                    onValueChange = { username = it },
-                    label = { Text("用户名") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                OutlinedTextField(
-                    value = password,
-                    onValueChange = {
-                        password = it
-                        hasUserEditedPassword = true
-                    },
-                    label = { Text("密码") },
-                    singleLine = true,
-                    visualTransformation = if (showPassword && canTogglePasswordVisibility) VisualTransformation.None else PasswordVisualTransformation(),
-                    trailingIcon = {
-                        if (canTogglePasswordVisibility) {
-                            IconButton(onClick = { showPassword = !showPassword }) {
-                                Icon(
-                                    imageVector = if (showPassword) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                                    contentDescription = if (showPassword) "隐藏密码" else "显示密码"
-                                )
-                            }
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                )
-
                 Text(
                     text = "留空则使用内置配置",
                     style = MaterialTheme.typography.bodySmall,
@@ -721,7 +678,7 @@ private fun ServerConfigDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = { onSave(url, username, password) }) {
+            TextButton(onClick = { onSave(url) }) {
                 Text("保存")
             }
         },

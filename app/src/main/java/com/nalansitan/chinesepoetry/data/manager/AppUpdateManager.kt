@@ -13,6 +13,8 @@ import androidx.core.content.FileProvider
 import androidx.core.content.pm.PackageInfoCompat
 import com.nalansitan.chinesepoetry.data.local.prefs.DataStoreManager
 import com.nalansitan.chinesepoetry.data.remote.ApiServiceProvider
+import com.nalansitan.chinesepoetry.data.remote.GitHubReleaseSource
+import kotlinx.coroutines.CancellationException
 import com.nalansitan.chinesepoetry.data.remote.api.AppVersionResponse
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -36,7 +38,8 @@ import javax.inject.Singleton
 class AppUpdateManager @Inject constructor(
     @ApplicationContext private val context: Context,
     private val apiServiceProvider: ApiServiceProvider,
-    private val dataStore: DataStoreManager
+    private val dataStore: DataStoreManager,
+    private val gitHubReleases: GitHubReleaseSource
 ) {
     companion object {
         const val CHECK_INTERVAL_HOURS = 24L
@@ -94,19 +97,9 @@ class AppUpdateManager @Inject constructor(
         _updateState.value = AppUpdateState.Checking
 
         try {
-            val response = apiServiceProvider.getPublicApiService().getLatestAppVersion()
-            if (!response.isSuccessful) {
-                _updateState.value = AppUpdateState.Error("检查更新失败: ${response.code()}")
-                return
-            }
-
-            val remoteVersion = response.body()
-            if (remoteVersion == null) {
-                _updateState.value = AppUpdateState.Error("版本信息为空")
-                return
-            }
-
-            if (remoteVersion.versionCode > getCurrentVersionCode()) {
+            dataStore.updateAppLastCheckTime()
+            val remoteVersion = gitHubReleases.latest()
+            if (remoteVersion != null && remoteVersion.versionCode > getCurrentVersionCode()) {
                 dataStore.setPendingAppUpdate(
                     hasUpdate = true,
                     versionCode = remoteVersion.versionCode,
@@ -122,6 +115,8 @@ class AppUpdateManager @Inject constructor(
                 dataStore.updateAppLastCheckTime()
                 _updateState.value = AppUpdateState.NoUpdate(getCurrentVersionName())
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             _updateState.value = AppUpdateState.Error(e.message ?: "检查更新失败")
         }
@@ -196,19 +191,9 @@ class AppUpdateManager @Inject constructor(
         if (!shouldCheckForUpdate()) return
 
         try {
-            val response = apiServiceProvider.getPublicApiService().getLatestAppVersion()
-            if (!response.isSuccessful) {
-                clearPendingUpdateSilently()
-                return
-            }
-
-            val remoteVersion = response.body()
-            if (remoteVersion == null) {
-                clearPendingUpdateSilently()
-                return
-            }
-
-            if (remoteVersion.versionCode > getCurrentVersionCode()) {
+            dataStore.updateAppLastCheckTime()
+            val remoteVersion = gitHubReleases.latest()
+            if (remoteVersion != null && remoteVersion.versionCode > getCurrentVersionCode()) {
                 dataStore.setPendingAppUpdate(
                     hasUpdate = true,
                     versionCode = remoteVersion.versionCode,
@@ -221,8 +206,10 @@ class AppUpdateManager @Inject constructor(
                 dataStore.setPendingAppUpdate(hasUpdate = false)
             }
             dataStore.updateAppLastCheckTime()
+        } catch (e: CancellationException) {
+            throw e
         } catch (_: Exception) {
-            clearPendingUpdateSilently()
+            // 网络失败或限流时保留此前发现的更新，不误报“没有新版”。
         }
     }
 
@@ -323,10 +310,7 @@ class AppUpdateManager @Inject constructor(
         return System.currentTimeMillis() - lastCheckTime >= intervalMillis
     }
 
-    private suspend fun clearPendingUpdateSilently() {
-        dataStore.setPendingAppUpdate(hasUpdate = false)
-        dataStore.updateAppLastCheckTime()
-    }
+
 }
 
 sealed class AppUpdateState {

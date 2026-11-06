@@ -1,5 +1,6 @@
 package com.nalansitan.chinesepoetry.presentation.viewmodel
 
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.nalansitan.chinesepoetry.BuildConfig
@@ -33,14 +34,7 @@ class InitialDownloadViewModel @Inject constructor(
     private val _serverUrl = MutableStateFlow("")
     val serverUrl: StateFlow<String> = _serverUrl.asStateFlow()
 
-    private val _serverUsername = MutableStateFlow("")
-    val serverUsername: StateFlow<String> = _serverUsername.asStateFlow()
-
-    private val _serverPassword = MutableStateFlow("")
-    val serverPassword: StateFlow<String> = _serverPassword.asStateFlow()
-
     val defaultServerUrl: String = BuildConfig.BASE_URL
-    val defaultServerPassword: String = BuildConfig.API_PASSWORD
 
     init {
         checkDatabaseStatus()
@@ -54,21 +48,11 @@ class InitialDownloadViewModel @Inject constructor(
                 _serverUrl.value = if (savedUrl == BuildConfig.BASE_URL) "" else savedUrl
             }
         }
-        viewModelScope.launch {
-            dataStore.serverUsername.collect { savedUsername ->
-                _serverUsername.value = if (savedUsername == BuildConfig.API_USERNAME) "" else savedUsername
-            }
-        }
-        viewModelScope.launch {
-            dataStore.serverPassword.collect { savedPassword ->
-                _serverPassword.value = if (savedPassword == BuildConfig.API_PASSWORD) "" else savedPassword
-            }
-        }
     }
 
-    fun setServerConfig(url: String, username: String, password: String) {
+    fun setServerConfig(url: String) {
         viewModelScope.launch {
-            dataStore.setServerConfig(url, username, password)
+            dataStore.setServerConfig(url)
             apiServiceProvider.recreateApiService()
         }
     }
@@ -101,6 +85,10 @@ class InitialDownloadViewModel @Inject constructor(
         viewModelScope.launch {
             downloadManager.downloadDatabase()
         }
+    }
+
+    fun importDatabase(uri: Uri) {
+        viewModelScope.launch { downloadManager.importDatabase(uri) }
     }
 
     /**

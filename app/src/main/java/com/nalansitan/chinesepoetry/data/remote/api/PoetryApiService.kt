@@ -2,6 +2,8 @@ package com.nalansitan.chinesepoetry.data.remote.api
 
 import okhttp3.ResponseBody
 import retrofit2.Response
+import retrofit2.http.HEAD
+import retrofit2.http.Url
 import retrofit2.http.GET
 import retrofit2.http.Header
 import retrofit2.http.Query
@@ -60,6 +62,16 @@ interface PoetryApiService {
     @GET("api/v1/poetry/database")
     @Streaming
     suspend fun downloadDatabase(
+        @Header("Range") range: String? = null
+    ): Response<ResponseBody>
+
+    @HEAD
+    suspend fun getDatabaseFileInfo(@Url url: String): Response<Void>
+
+    @GET
+    @Streaming
+    suspend fun downloadDatabaseFile(
+        @Url url: String,
         @Header("Range") range: String? = null
     ): Response<ResponseBody>
 

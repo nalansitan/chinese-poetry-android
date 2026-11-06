@@ -2,13 +2,13 @@
 
 一款开源的 Android 离线古诗词阅读应用。项目基于
 [chinese-poetry/chinese-poetry](https://github.com/chinese-poetry/chinese-poetry)
-开源古诗词数据，将原始数据格式化并转换为本地 SQLite 数据库。应用只需在首次启动时
-联网完成诗词数据库初始化，之后即可长期离线阅读、搜索和收藏古诗词。
+开源古诗词数据，将原始数据格式化并转换为本地 SQLite 数据库。应用在首次启动时下载或导入诗词数据库，
+之后即可长期离线阅读、搜索和收藏古诗词。
 
 An open-source offline Chinese poetry reader for Android. It formats data from
 [chinese-poetry/chinese-poetry](https://github.com/chinese-poetry/chinese-poetry)
-and stores it in a local SQLite database. An internet connection is required only for the
-initial database setup; afterward, poems can be read, searched, and saved offline.
+and stores it in a local SQLite database. The database can be downloaded or imported from a local file during
+initial setup; afterward, poems can be read, searched, and saved offline.
 
 ## 项目结构
 
@@ -42,7 +42,11 @@ initial database setup; afterward, poems can be read, searched, and saved offlin
 
 ## 快速开始
 
-### 1. 准备数据 & 启动服务端
+### 1. 准备数据（推荐 GitHub Release 数据包）
+
+无需自建服务器的压缩包下载、本地导入和完整发布步骤见 [GitHub Release 指南](docs/github-release.md)。
+
+以下为可选的自建 API 方式：
 
 详见 [server/README.md](server/README.md)
 
@@ -116,14 +120,14 @@ AAB 输出目录：
 - 未提供 `keystore.properties` 时，项目仍可正常进行日常开发编译。
 - `chinese-poetry-android-release-keystore.jks` 和 `keystore.properties` 请务必妥善备份，不要提交到版本库。
 - 默认服务地址可通过 Gradle 属性 `POETRY_BASE_URL` 或 `local.properties` 中的 `BASE_URL` 覆盖；不要把永久服务端凭据编入 APK。
-- GitHub Release 工作流要求在 Actions Variables 中配置 `POETRY_BASE_URL`（必须是以 `/` 结尾的 HTTPS 地址）。域名通常不需要放入 Secret；签名文件和密码应配置在 Actions Secrets 中。
+- GitHub Release 工作流支持 `POETRY_DATABASE_URL` + `POETRY_DATABASE_SHA256` 直接分发数据库；自建 API 模式使用 `POETRY_BASE_URL`。签名文件和密码配置在 Actions Secrets 中，详见发布指南。
 - 发布版本的 `versionCode` 使用 `major * 10000 + minor * 100 + patch`（缺少 patch 时按 0）；工作流会同时校验 tag、`versionName` 和 `versionCode`。
 
 ## 部署指南
 
 详见 [server/README.md](server/README.md)
 
-服务端使用 Nginx + FastAPI 部署。Android 客户端支持发送 HTTP Basic Auth，并可在设置中动态修改服务器配置；如需鉴权，应在反向代理或服务端显式配置。
+服务端使用 Nginx + FastAPI 部署。Android 客户端使用公开 HTTPS 下载，不再发送 HTTP Basic Auth；设置中的服务器地址用于可选的更新 API。
 
 ## 数据更新
 
@@ -159,7 +163,7 @@ def get_update_data(client_version: int):
 - [x] 首次启动下载数据
 - [x] 增量数据更新
 - [x] 动态服务器配置
-- [x] HTTP Basic Auth 认证
+- [x] 公开 HTTPS 数据包、gzip 解压与本地文件导入
 - [x] 收藏、搜索、分类浏览
 - [x] 竖排/横排切换
 - [x] 古风文艺界面

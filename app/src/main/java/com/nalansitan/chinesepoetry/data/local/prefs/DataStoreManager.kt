@@ -8,10 +8,7 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
-import androidx.security.crypto.EncryptedSharedPreferences
-import androidx.security.crypto.MasterKey
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
 import org.json.JSONArray
 
@@ -23,20 +20,10 @@ private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(na
 
 class DataStoreManager(private val context: Context) {
 
-    private val securePreferences by lazy {
-        val masterKey = MasterKey.Builder(context)
-            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-            .build()
-        EncryptedSharedPreferences.create(
-            context,
-            "poetry_secure_prefs",
-            masterKey,
-            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-        )
+    init {
+        // 删除旧版本的加密凭据文件，无需解密或重新创建 Keystore 密钥。
+        context.deleteSharedPreferences("poetry_secure_prefs")
     }
-    private val secureUsername = MutableStateFlow(securePreferences.getString("server_username", "").orEmpty())
-    private val securePassword = MutableStateFlow(securePreferences.getString("server_password", "").orEmpty())
 
     companion object {
         // 数据版本
@@ -210,10 +197,6 @@ class DataStoreManager(private val context: Context) {
     val serverUrl: Flow<String> = context.dataStore.data
         .map { preferences -> preferences[SERVER_URL] ?: "" }
     
-    val serverUsername: Flow<String> = secureUsername
-    
-    val serverPassword: Flow<String> = securePassword
-
     val searchHistory: Flow<List<String>> = context.dataStore.data
         .map { preferences ->
             val raw = preferences[SEARCH_HISTORY] ?: return@map emptyList()
@@ -236,38 +219,20 @@ class DataStoreManager(private val context: Context) {
         return if (!userUrl.isNullOrBlank()) userUrl else com.nalansitan.chinesepoetry.BuildConfig.BASE_URL
     }
     
-    /**
-     * 获取实际使用的认证信息（优先使用用户配置，否则使用 BuildConfig 默认值）
-     */
-    fun getEffectiveCredentials(userUsername: String?, userPassword: String?): Pair<String, String> {
-        val username = if (!userUsername.isNullOrBlank()) userUsername else com.nalansitan.chinesepoetry.BuildConfig.API_USERNAME
-        val password = if (!userPassword.isNullOrBlank()) userPassword else com.nalansitan.chinesepoetry.BuildConfig.API_PASSWORD
-        return username to password
-    }
-    
-    suspend fun setServerConfig(url: String, username: String, password: String) {
+    suspend fun setServerConfig(url: String) {
         context.dataStore.edit { preferences ->
             preferences[SERVER_URL] = url
             preferences.remove(SERVER_USERNAME)
             preferences.remove(SERVER_PASSWORD)
         }
-        securePreferences.edit()
-            .putString("server_username", username)
-            .putString("server_password", password)
-            .apply()
-        secureUsername.value = username
-        securePassword.value = password
     }
-    
+
     suspend fun clearServerConfig() {
         context.dataStore.edit { preferences ->
             preferences.remove(SERVER_URL)
             preferences.remove(SERVER_USERNAME)
             preferences.remove(SERVER_PASSWORD)
         }
-        securePreferences.edit().clear().apply()
-        secureUsername.value = ""
-        securePassword.value = ""
     }
 
     suspend fun setSearchHistory(history: List<String>) {

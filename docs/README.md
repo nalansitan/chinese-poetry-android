@@ -8,3 +8,5 @@
 - [服务端部署](../server/README.md)：数据转换、FastAPI 服务和部署说明
 
 文档随代码一起维护。涉及接口、数据库结构或模块职责的变更，应在同一个 Pull Request 中更新对应文档。
+
+- [GitHub Release、压缩数据库与本地导入](github-release.md)

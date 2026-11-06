@@ -5,7 +5,6 @@ import com.nalansitan.chinesepoetry.data.local.prefs.DataStoreManager
 import com.nalansitan.chinesepoetry.data.remote.api.PoetryApiService
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
-import okhttp3.Credentials
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
@@ -14,7 +13,7 @@ import java.util.concurrent.TimeUnit
 
 /**
  * API 服务提供者
- * 支持动态配置服务器地址和认证信息
+ * 支持动态配置服务器地址
  */
 class ApiServiceProvider(
     private val dataStore: DataStoreManager
@@ -48,14 +47,11 @@ class ApiServiceProvider(
     private fun createApiService(): PoetryApiService {
         // 读取用户配置
         val userUrl = runBlocking { dataStore.serverUrl.first() }
-        val userUsername = runBlocking { dataStore.serverUsername.first() }
-        val userPassword = runBlocking { dataStore.serverPassword.first() }
         
         // 使用有效配置
         val baseUrl = dataStore.getEffectiveServerUrl(userUrl)
-        val (username, password) = dataStore.getEffectiveCredentials(userUsername, userPassword)
         
-        val okHttpClient = createOkHttpClient(username, password)
+        val okHttpClient = createPublicOkHttpClient()
         
         val retrofit = Retrofit.Builder()
             .baseUrl(baseUrl)
@@ -83,35 +79,6 @@ class ApiServiceProvider(
         return service
     }
     
-    private fun createOkHttpClient(username: String, password: String): OkHttpClient {
-        val loggingInterceptor = HttpLoggingInterceptor().apply {
-            redactHeader("Authorization")
-            level = if (BuildConfig.DEBUG) {
-                // 使用 HEADERS 级别，避免 BODY 级别把大文件全部缓存到内存（破坏 @Streaming）
-                HttpLoggingInterceptor.Level.HEADERS
-            } else {
-                HttpLoggingInterceptor.Level.BASIC
-            }
-        }
-        
-        val authInterceptor = okhttp3.Interceptor { chain ->
-            val requestBuilder = chain.request().newBuilder()
-            if (username.isNotBlank() || password.isNotBlank()) {
-                requestBuilder.header("Authorization", Credentials.basic(username, password))
-            }
-            val request = requestBuilder.build()
-            chain.proceed(request)
-        }
-        
-        return OkHttpClient.Builder()
-            .addInterceptor(authInterceptor)
-            .addInterceptor(loggingInterceptor)
-            .connectTimeout(10, TimeUnit.SECONDS)
-            .readTimeout(15, TimeUnit.MINUTES)  // 读取超时放宽，支持大文件下载
-            .writeTimeout(10, TimeUnit.SECONDS)
-            .build()
-    }
-
     private fun createPublicOkHttpClient(): OkHttpClient {
         val loggingInterceptor = HttpLoggingInterceptor().apply {
             redactHeader("Authorization")
@@ -133,6 +100,8 @@ class ApiServiceProvider(
     /**
      * 获取当前使用的服务器地址（调试用）
      */
+    fun hasUpdateServer(): Boolean = getCurrentBaseUrl() != "https://example.com/"
+
     fun getCurrentBaseUrl(): String {
         val userUrl = runBlocking { dataStore.serverUrl.first() }
         return dataStore.getEffectiveServerUrl(userUrl)

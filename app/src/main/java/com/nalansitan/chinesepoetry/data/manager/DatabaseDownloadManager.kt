@@ -1,5 +1,12 @@
 package com.nalansitan.chinesepoetry.data.manager
 
+import com.nalansitan.chinesepoetry.BuildConfig
+import java.security.MessageDigest
+import android.net.Uri
+import android.database.sqlite.SQLiteDatabase
+import com.nalansitan.chinesepoetry.data.local.database.DatabasePackage
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.sync.Mutex
 import android.content.Context
 import android.util.Log
 import com.nalansitan.chinesepoetry.data.local.database.DatabaseCompatibility
@@ -30,6 +37,8 @@ class DatabaseDownloadManager @Inject constructor(
     private val apiServiceProvider: ApiServiceProvider
 ) {
 
+    private val operationMutex = Mutex()
+
     private val _downloadState = MutableStateFlow<DownloadState>(DownloadState.Idle)
     val downloadState: StateFlow<DownloadState> = _downloadState.asStateFlow()
 
@@ -49,6 +58,13 @@ class DatabaseDownloadManager @Inject constructor(
     suspend fun getRemoteDatabaseSize(): Long? {
         return withContext(Dispatchers.IO) {
             try {
+                if (BuildConfig.DATABASE_URL.isNotBlank()) {
+                    val response = apiServiceProvider.getPublicApiService()
+                        .getDatabaseFileInfo(BuildConfig.DATABASE_URL)
+                    return@withContext if (response.isSuccessful) {
+                        response.headers()["Content-Length"]?.toLongOrNull()?.takeIf { it > 0 }
+                    } else null
+                }
                 val response = apiServiceProvider.getApiService().getDatabaseInfo()
                 if (response.isSuccessful) {
                     response.body()?.size?.takeIf { it > 0 }
@@ -64,10 +80,17 @@ class DatabaseDownloadManager @Inject constructor(
      */
     suspend fun downloadDatabase(): Boolean {
         return withContext(Dispatchers.IO) {
+            if (!operationMutex.tryLock()) return@withContext false
             try {
+                check(!isDatabaseExists()) { "数据库已初始化，无需重复导入" }
                 _downloadState.value = DownloadState.Downloading(0)
 
-                val tempFile = File(context.cacheDir, "poetry.db.tmp")
+                // 不同数据版本不共用断点文件，避免跨文件拼接。
+                val tempName = if (BuildConfig.DATABASE_URL.isBlank()) "poetry.db.tmp"
+                    else "poetry-${MessageDigest.getInstance("SHA-256").digest(
+                        (BuildConfig.DATABASE_URL + BuildConfig.DATABASE_SHA256).toByteArray()
+                    ).joinToString("") { "%02x".format(it) }}.db.tmp"
+                val tempFile = File(context.cacheDir, tempName)
                 var downloadedBytes = 0L
 
                 // 检查临时文件是否存在，用于断点续传
@@ -78,11 +101,16 @@ class DatabaseDownloadManager @Inject constructor(
 
                 // 发起请求，如果有已下载内容则带 Range 头
                 val rangeHeader = if (downloadedBytes > 0) "bytes=$downloadedBytes-" else null
-                val response = apiServiceProvider.getApiService().downloadDatabase(rangeHeader)
+                val response = if (BuildConfig.DATABASE_URL.isNotBlank()) {
+                    apiServiceProvider.getPublicApiService()
+                        .downloadDatabaseFile(BuildConfig.DATABASE_URL, rangeHeader)
+                } else {
+                    apiServiceProvider.getApiService().downloadDatabase(rangeHeader)
+                }
 
                 if (!response.isSuccessful) {
                     val errorMsg = when (response.code()) {
-                        401 -> "认证失败 (401)：用户名或密码错误"
+                        401 -> "下载地址需要认证 (401)：请使用公开下载地址"
                         403 -> "访问被拒绝 (403)：权限不足"
                         404 -> "数据库文件未找到 (404)：服务器未准备好数据"
                         416 -> {
@@ -93,6 +121,7 @@ class DatabaseDownloadManager @Inject constructor(
                         in 500..599 -> "服务器内部错误 (${response.code()})"
                         else -> "下载失败: ${response.code()}"
                     }
+                    response.errorBody()?.close()
                     _downloadState.value = DownloadState.Error(errorMsg)
                     return@withContext false
                 }
@@ -105,6 +134,12 @@ class DatabaseDownloadManager @Inject constructor(
 
                 // 判断服务端是否支持续传
                 val isResuming = response.code() == 206
+                if (isResuming && !response.headers()["Content-Range"].orEmpty()
+                        .startsWith("bytes $downloadedBytes-")) {
+                    body.close()
+                    tempFile.delete()
+                    error("续传响应不匹配，请重试")
+                }
                 if (!isResuming && downloadedBytes > 0) {
                     // 服务端不支持 Range，返回了完整文件，从头开始
                     Log.w(TAG, "Server does not support Range, restarting download")
@@ -115,7 +150,7 @@ class DatabaseDownloadManager @Inject constructor(
                 // 计算总大小：续传时 = 已下载 + 剩余；全新时 = contentLength
                 val contentLength = body.contentLength()
                 val totalBytes = if (isResuming) {
-                    downloadedBytes + contentLength
+                    if (contentLength >= 0) downloadedBytes + contentLength else -1
                 } else {
                     contentLength
                 }
@@ -149,8 +184,8 @@ class DatabaseDownloadManager @Inject constructor(
                                 lastSpeedUpdateTime = now
                                 lastSpeedUpdateBytes = downloadedBytes
 
-                                if (totalBytes > 0) {
-                                    val progress = (downloadedBytes * 100 / totalBytes).toInt()
+                                run {
+                                    val progress = if (totalBytes > 0) (downloadedBytes * 100 / totalBytes).toInt().coerceIn(0, 100) else 0
                                     _downloadState.value = DownloadState.Downloading(
                                         progress = progress,
                                         speedBytesPerSec = currentSpeed,
@@ -165,21 +200,16 @@ class DatabaseDownloadManager @Inject constructor(
                     raf.close()
                 }
 
-                // 下载完成，移动到数据库目录
-                val dbFile = context.getDatabasePath(PoetryDatabase.DATABASE_NAME)
-                dbFile.parentFile?.mkdirs()
-
-                DatabaseCompatibility.clearPatchMarker(dbFile)
-                val installed = DatabaseFileInstaller.install(tempFile, dbFile, totalBytes) {
-                    DatabaseCompatibility.patchDatabaseForRoom(it)
+                check(totalBytes <= 0 || downloadedBytes == totalBytes) { "下载未完成，请重试续传" }
+                try {
+                    installPackage(tempFile.inputStream())
+                } finally {
+                    // 传输已完整结束，解压或摘要失败也不能继续拼接这个包。
+                    tempFile.delete()
                 }
-                if (!installed) {
-                    _downloadState.value = DownloadState.Error("数据库校验或安装失败")
-                    return@withContext false
-                }
-
-                _downloadState.value = DownloadState.Success
-                true
+            } catch (e: CancellationException) {
+                _downloadState.value = DownloadState.Idle
+                throw e
             } catch (e: Exception) {
                 val errorMsg = when (e) {
                     is SocketTimeoutException -> "连接超时：无法连接到服务器"
@@ -190,7 +220,51 @@ class DatabaseDownloadManager @Inject constructor(
                 // 不删除临时文件，保留用于下次续传
                 _downloadState.value = DownloadState.Error(errorMsg)
                 false
+            } finally {
+                operationMutex.unlock()
             }
+        }
+    }
+
+    suspend fun importDatabase(uri: Uri): Boolean = withContext(Dispatchers.IO) {
+        if (!operationMutex.tryLock()) return@withContext false
+        try {
+            check(!isDatabaseExists()) { "数据库已初始化，无需重复导入" }
+            val input = context.contentResolver.openInputStream(uri) ?: error("无法读取所选文件")
+            installPackage(input)
+        } catch (e: CancellationException) {
+            _downloadState.value = DownloadState.Idle
+            throw e
+        } catch (e: Exception) {
+            _downloadState.value = DownloadState.Error(e.message ?: "导入失败")
+            false
+        } finally {
+            operationMutex.unlock()
+        }
+    }
+
+    private fun installPackage(input: java.io.InputStream): Boolean {
+        _downloadState.value = DownloadState.Installing
+        val unpacked = File(context.cacheDir, "poetry-unpacked.db.tmp")
+        try {
+            DatabasePackage.unpack(input, unpacked, BuildConfig.DATABASE_SHA256)
+            val dbFile = context.getDatabasePath(PoetryDatabase.DATABASE_NAME)
+            SQLiteDatabase.openDatabase(unpacked.path, null, SQLiteDatabase.OPEN_READONLY).use { db ->
+                db.rawQuery("PRAGMA quick_check", null).use { cursor ->
+                    check(cursor.moveToFirst() && cursor.getString(0) == "ok") { "数据库完整性检查失败" }
+                }
+                db.rawQuery("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('poems', 'authors')", null).use {
+                    check(it.count == 2) { "所选文件不是诗词数据库" }
+                }
+            }
+            DatabaseCompatibility.clearPatchMarker(dbFile)
+            check(DatabaseFileInstaller.install(unpacked, dbFile, unpacked.length()) {
+                DatabaseCompatibility.patchDatabaseForRoom(it)
+            }) { "数据库校验或安装失败" }
+            _downloadState.value = DownloadState.Success
+            return true
+        } finally {
+            unpacked.delete()
         }
     }
 
@@ -230,6 +304,7 @@ sealed class DownloadState {
         val downloadedBytes: Long = 0,
         val totalBytes: Long = 0
     ) : DownloadState()
+    data object Installing : DownloadState()
     data object Success : DownloadState()
     data class Error(val message: String) : DownloadState()
 }
